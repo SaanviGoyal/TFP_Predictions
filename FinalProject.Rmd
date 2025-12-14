@@ -1,0 +1,634 @@
+---
+title: "Final Project"
+date: 'Due: 5:00PM, Third Wednesday'
+output:
+  html_document:
+    code_folding: show
+    highlight: haddock
+    theme: lumen
+    toc: yes
+    toc_depth: 4
+    toc_float: yes
+  pdf_document:
+    toc: yes
+    toc_depth: '4'
+  word_document:
+    toc: yes
+    toc_depth: '4'
+urlcolor: blue  
+---
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(fig.height=4, fig.width=6, warning = F)
+library(janitor)
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(ggplot2, glmnet, dplyr, keras, tidyverse, tensorflow, magrittr, mlbench, 
+               car, coefplot, randomForest, tree, ISLR, rpart, rattle, pROC, partykit, janitor)
+
+reticulate::use_condaenv('r')
+transformers <- reticulate::import("transformers")
+```
+
+Import Data 
+
+```{r}
+df <- readxl::read_xlsx("data/final.xlsx")
+dim(df)
+
+df1 <- read_csv('data/data1.csv')
+
+
+df <- df %>%
+        clean_names()
+
+
+df <- df %>%
+        rename(
+           country=country_name
+           )
+
+df$year <- as.numeric(df$year)
+
+data <- left_join(df, df1, by = c("year" = "year" , "country" = "country"))
+```
+
+Dimensions
+```{r}
+dim(data)
+```
+
+Clean Data 
+```{r}
+
+data <- data[!is.na(data$TFP), ]
+
+data1 <- data %>% select(c(country))
+data <- data %>% mutate_if(is.character, as.numeric)
+data$country <- data1$country
+data <- data %>% select(-c(...1))
+
+
+# newdata <- data
+# for (col in colnames(data)) {
+#   if (is.numeric(data[[col]])) {
+#     max_val <- max(data[[col]], na.rm = TRUE)
+#     newdata[[col]] <- newdata[[col]] / max_val
+#   }
+# }
+# 
+# data<- newdata
+dim(data)
+view(data)
+
+```
+
+
+EDA
+```{r}
+dim(data)
+n <- nrow(data)
+#names(data)
+
+prodmean <- data %>% group_by(year) %>%
+    summarize(
+      year = year,
+      tfp = mean(TFP, na.rm = T)
+    )
+
+dim(prodmean)
+#view(prodmean)
+
+
+prodmean %>%
+  ggplot(aes(x=year, y=tfp, color="light blue")) +
+  geom_point(color = "light blue")+
+  geom_smooth(method="lm", formula=y~x, se=F,color = "blue")+
+  theme_bw() +
+  theme(legend.position = "none")+
+  labs( title = "Mean Log Change in TFP vs year", x = "Year" , y = "Global Mean Log Change in TFP")
+
+histdata <- filter(data, year >= 2020)
+p1 <- ggplot(histdata) +
+  geom_histogram(aes(x = histdata$TFP), bins = 50, fill = "blue", color = "black") +
+  labs(title = "Histogram of Log Change of TFP of each country in 2020-2023", x = "Log Change of TFP", y = "Frequency") +
+  xlim(-35, 35)
+histdata1 <- filter(data, year < 2020)
+p2 <- ggplot(histdata1) +
+  geom_histogram(aes(x = histdata1$TFP), bins = 50, fill = "red", color = "black") +
+  labs(title = "Histogram of Log Change of TFP of each country before 2020", x = "Log Change of TFP", y = "Frequency") +
+  xlim(-35, 35)
+
+p1
+p2
+
+# newdata <- data
+# for (col in colnames(data)) {
+#   if (is.numeric(data[[col]])) {
+#     max_val <- max(data[[col]], na.rm = TRUE)
+#     newdata[[col]] <- newdata[[col]] / max_val
+#   }
+# }
+
+
+gdptot <- data %>% group_by(year) %>%
+    summarize(
+      year = year,
+      gdp = mean(gdp_current_us, na.rm= T),
+      tfp = mean(TFP, na.rm = T)
+    )
+
+
+gdptot %>%
+  ggplot(aes(x=gdp, y=tfp, color="light blue")) +
+  geom_point(color = "light blue")+
+  geom_smooth(method="lm", formula=y~x, se=F,color = "blue")+
+  theme_bw() +
+  theme(legend.position = "none")+
+  labs( title = "Mean Log Change in TFP vs Mean GDP", x = "Mean GDP" , y = "Global Mean Log Change in TFP")
+
+
+captot <- data %>% group_by(year) %>%
+    summarize(
+      year = year,
+      capital = mean(gross_capital_formation_percent_of_gdp, na.rm= T),
+      tfp = mean(TFP, na.rm = T)
+    )
+
+
+captot %>%
+  ggplot(aes(x=capital, y=tfp, color="light blue")) +
+  geom_point(color = "light blue")+
+  geom_smooth(method="lm", formula=y~x, se=F,color = "blue")+
+  theme_bw() +
+  theme(legend.position = "none")+
+  labs( title = "Mean Log Change in TFP vs Mean Capital", x = "Mean Capital" , y = "Global Mean Log Change in TFP")
+
+
+# y1 <- data %>% filter(country == "United States") 
+# y2 <- data %>% filter(country == "China")
+# y3 <- data %>% filter(country == "India")
+# y4 <- data %>% filter(country == "Chile")
+# y5 <- data %>% filter(country == "Peru")
+# y6 <- data %>% filter(country == "United Kingdom")
+# y7 <- data %>% filter(country == "Taiwan")
+# y8 <- data %>% filter(country == "South Korea")
+# y9 <- data %>% filter(country == "Chile")
+# y10 <- data %>% filter(country == "Spain")
+# 
+# y1 <- arrange(y1, gdp_current_us)
+# y2 <- arrange(y2, gdp_current_us)
+# y3 <- arrange(y3, gdp_current_us)
+# y4 <- arrange(y4, gdp_current_us)
+# y5 <- arrange(y5, gdp_current_us)
+# y6 <- arrange(y6, gdp_current_us)
+# y7 <- arrange(y7, gdp_current_us)
+# y8 <- arrange(y8, gdp_current_us)
+# y9 <- arrange(y9, gdp_current_us)
+# y10 <- arrange(y10, gdp_current_us)
+# 
+# plot(y1$gdp_current_us, y1$TFP, type = "n", ylim =c(-1, 1), xlab = "GDP", ylab = "Log Change in TFP")
+# 
+# 
+# lines(y1$gdp_current_us, y1$TFP, type = "l", col = "red")
+# lines(y2$gdp_current_us, y2$TFP, type = "l", col = "blue")
+# lines(y3$gdp_current_us, y3$TFP, type = "l", col = "green")
+# lines(y4$gdp_current_us, y4$TFP, type = "l", col = "purple")
+# lines(y5$gdp_current_us, y5$TFP, type = "l", col = "navy")
+# lines(y6$gdp_current_us, y6$TFP, type = "l", col = "maroon")
+# lines(y7$gdp_current_us, y7$TFP, type = "l", col = "darkgreen")
+# lines(y8$gdp_current_us, y8$TFP, type = "l", col = "darkred")
+# lines(y9$gdp_current_us, y9$TFP, type = "l", col = "pink")
+# lines(y10$gdp_current_us, y10$TFP, type = "l", col = "lightblue")
+
+```
+
+
+
+Split Data 
+```{r}
+data <- data %>% drop_na()
+
+library(caret)
+
+set.seed(123)
+
+# Ensure every country is in both training and testing data
+trainIndex <- createDataPartition(data$country, p = 0.7, list = FALSE, times = 1)
+
+# Create training and testing datasets
+train_data <- data[trainIndex, ]
+test_data <- data[-trainIndex, ]
+
+#new_data <- data[-train_index,]
+#test_index <- sample(0.5 *n, 0.3*n)
+#test_data <- data[test_index, ]
+#validation_data <- data[-test_index, ]
+
+#view(train_data)
+#dim(train_data)
+```
+
+Linear Regression
+```{r}
+fitLR <- lm(TFP~. -country, train_data)
+summary(fitLR)
+confint(fitLR)
+```
+
+Testing Assumptions 
+```{r}
+plot(fitLR, 1)
+plot(fitLR, 2)
+```
+
+LASSO Construction
+```{r}
+set.seed(10)
+dim(train_data)
+
+x <- model.matrix(TFP ~. -country -year, data = train_data)[, -1]
+y <- train_data$TFP
+
+fitLasso <- cv.glmnet(x, y, alpha = 0.99)
+```
+
+LASSO Coefficient Extraction
+```{r}
+coef1 <- coef(fitLasso, s = "lambda.min")
+coef1 <- coef1[which(coef1 !=0),]  
+rownames(as.matrix(coef1))
+plot(fitLasso)
+```
+
+Relaxed Lasso 
+```{r}
+fitRelLasso <- lm(TFP~population_ages_65_and_above_percent_of_total_population, train_data)
+summary(fitRelLasso)
+confint(fitRelLasso)
+```
+
+Testing Assumptions
+```{r}
+plot(fitRelLasso, 1)
+plot(fitRelLasso, 2)
+```
+
+Tree
+```{r}
+fitTree <- tree(TFP~. -country-year, train_data,
+                    control=tree.control(nobs=nrow(train_data), minsize=20, mindev=.008)) 
+# standardize data set by taking the largest value and setting the rest of the variables 
+# as proportions
+par(cex = .3)
+plot(fitTree)
+title(main="Tree: Change in TFP")
+text(fitTree, digits = 3, xpd = NA)
+```
+
+```{r}
+# fit.single.rp <- rpart(TFP~. -country, train_data, minsplit=20, cp=.009)
+# plot(as.party(fit.single.rp), main="Tree: Change in TFP")
+
+```
+
+Random Forest 
+```{r}
+fitRF <- randomForest(TFP~.-country, train_data, mtry=6, ntree=250)
+plot(fitRF)
+```
+
+Neural Network
+```{r}
+# set_random_seed(10)
+# 
+# # Create a Keras Sequential model
+# p <- dim(train_data)[2] # number of input variables
+# 
+# 
+# model_from_json() <- keras::keras_model_sequential() %>%
+# layer_dense(units = (c(p)+1)/2, activation = "relu", input_shape = c(p)) %>%
+# layer_dense(units = 1, activation = "softmax") # output
+```
+
+```{r}
+# model %>% compile(
+#   optimizer = "rmsprop",
+#   loss = "sparse_categorical_crossentropy",    #  will take care of integers # categorical_crossentropy
+#   metrics = c("accuracy")
+# )
+```
+
+
+```{r}
+# fitNN <- model %>% fit(
+#   X1,
+#   y,
+#   epochs = 20, #20 in the lecture. I tried larger epochs
+#   batch_size = 512,
+#   validation_split = .20 #  20% of the data3_xtain, data3_ytrain as the validation data
+# )
+```
+
+
+```{r}
+# plot(fitNN)
+```
+
+
+```{r}
+# round(model %>% predict(data3_xtrain[1:5,]), 3)  # 3 decimals
+# predict(model,data3_xtrain[1:5,])
+```
+
+Sensitivity Analysis 
+```{r}
+# #US <- data.frame(tfp = numeric(), population_15_24 = numeric())
+# data2 <- filter(data, country == "United States")
+# data3 <- filter(data2, year == "2021")
+# data4 <- 
+# US2024 <- filter(US, country == "United States")
+# for (i in 1:100) {
+#   tfp <- predict(fitRF, )
+# }
+
+predictions <- data.frame(tfp = numeric(), population_15_64 = numeric())
+set.seed(1)
+data2 <- filter(data, country == "United States")
+data3 <- filter(data2, year == "2021")
+#predictions <- numeric(100)
+
+for (i in 1:100) {
+  data3$population_ages_15_64_percent_of_total_population = i
+  newpred <- data.frame(predict(fitRF, data3), i)
+  predictions <- rbind(predictions, newpred)
+}
+
+predictions <- predictions %>% filter(i > 45)
+predictions %>%
+  ggplot(aes(x=i, y=predict.fitRF..data3., color="light blue")) +
+  geom_point(color = "light blue")+
+  geom_line(color = "blue")+
+  theme_bw() +
+  theme(legend.position = "none")+
+  labs( title = "Log Change in TFP vs Percent of population between 15-64", x = "Percent of population between 15-64" , y = "Log Change in TFP")
+
+
+
+```
+
+```{r}
+cpredictions <- data.frame(tfp = numeric(), population_15_64 = numeric())
+set.seed(1)
+data2 <- filter(data, country == "China")
+data3 <- filter(data2, year == "2021")
+#predictions <- numeric(100)
+
+for (i in 1:100) {
+  data3$population_ages_15_64_percent_of_total_population = i
+  newpred <- data.frame(predict(fitRF, data3), i)
+  cpredictions <- rbind(cpredictions, newpred)
+}
+
+cpredictions <- cpredictions %>% filter(i > 45)
+cpredictions %>%
+  ggplot(aes(x=i, y=predict.fitRF..data3., color="light blue")) +
+  geom_point(color = "light blue")+
+  geom_line(color = "blue")+
+  theme_bw() +
+  theme(legend.position = "none")+
+  labs( title = "Log Change in TFP vs Percent of population between 15-64", x = "Percent of population between 15-64" , y = "Log Change in TFP")
+```
+
+```{r}
+predictions1 <- data.frame(tfp = numeric(), imports = numeric())
+set.seed(1)
+data2 <- filter(data, country == "United States")
+data3 <- filter(data2, year == "2021")
+#predictions <- numeric(100)
+
+for (i in 1:100) {
+  data3$imports_of_goods_and_services_percent_of_gdp = i
+  newpred <- data.frame(predict(fitRF, data3), i)
+  predictions1 <- rbind(predictions1, newpred)
+}
+
+#predictions1 <- predictions1 %>% filter(i > 45)
+predictions1 %>%
+  ggplot(aes(x=i, y=predict.fitRF..data3., color="light blue")) +
+  geom_point(color = "light blue")+
+  geom_line(color = "blue")+
+  theme_bw() +
+  theme(legend.position = "none")+
+  labs( title = "Log Change in TFP vs Imports as percent of GDP", x = "Imports as percent of gdp" , y = "Log Change in TFP")
+```
+
+```{r}
+predictions2 <- data.frame(tfp = numeric(), exports = numeric())
+set.seed(1)
+data2 <- filter(data, country == "United States")
+data3 <- filter(data2, year == "2021")
+#predictions <- numeric(100)
+
+for (i in 1:100) {
+  data3$exports_of_goods_and_services_percent_of_gdp = i
+  newpred <- data.frame(predict(fitRF, data3), i)
+  predictions2 <- rbind(predictions2, newpred)
+}
+
+#predictions1 <- predictions1 %>% filter(i > 45)
+predictions2 %>%
+  ggplot(aes(x=i, y=predict.fitRF..data3., color="light blue")) +
+  geom_point(color = "light blue")+
+  geom_line(color = "blue")+
+  theme_bw() +
+  theme(legend.position = "none")+
+  labs( title = "Log Change in TFP vs Exports as percent of GDP", x = "Exports as percent of gdp" , y = "Log Change in TFP")
+```
+```{r}
+predictions3 <- data.frame(tfp = numeric(), inflation = numeric())
+set.seed(1)
+data2 <- filter(data, country == "United States")
+data3 <- filter(data2, year == "2021")
+#predictions <- numeric(100)
+
+for (i in -10:10) {
+  data3$inflation_consumer_prices_annual_percent = i
+  newpred <- data.frame(predict(fitRF, data3), i)
+  predictions3 <- rbind(predictions3, newpred)
+}
+
+#predictions1 <- predictions1 %>% filter(i > 45)
+predictions3 %>%
+  ggplot(aes(x=i, y=predict.fitRF..data3., color="light blue")) +
+  geom_point(color = "light blue")+
+  geom_line(color = "blue")+
+  theme_bw() +
+  theme(legend.position = "none")+
+  labs( title = "Log Change in TFP vs Exports as percent of GDP", x = "Exports as percent of gdp" , y = "Log Change in TFP")
+```
+```{r}
+datac <- data %>% group_by(country)
+dim(datac)
+```
+Model Comparison
+```{r}
+X_test <- model.matrix(TFP ~.-country-year, data = test_data)[,-1]
+
+lm_res <- predict(fitLR, test_data)
+lasso_res <- predict(fitLasso, X_test)
+rellasso_res <- predict(fitRelLasso, test_data)
+tree_res <- predict(fitTree, test_data)
+rf_res <- predict(fitRF, test_data)
+#nn_res <- predict(fitNN, test_data)
+
+lm_mse <- mean((lm_res - test_data$TFP)^2)
+lasso_mse <- mean((lasso_res - test_data$TFP)^2)
+rellasso_mse <- mean((rellasso_res - test_data$TFP)^2)
+tree_mse <- mean((tree_res - test_data$TFP)^2)
+rf_mse <- mean((rf_res - test_data$TFP)^2)
+#nn_mse <- mean((nn_res - test_dat$TFPa)^2)
+lm_mse
+lasso_mse
+rellasso_mse
+tree_mse
+rf_mse
+```
+
+Ensemble Model 
+```{r}
+ensemble <- (lm_res + lasso_res + rellasso_res + tree_res + rf_res)/5
+ensemble_mse <- mean((ensemble - test_data$TFP)^2)
+ensemble_mse
+```
+
+Ensemble Model 
+```{r}
+# ensemble <- (lm_res + lasso_res + rellasso_res + tree_res + rf_res + nn_res)/6
+# ensemble_mse <- mean((ensemble - test_data$tfp)^2)
+# ensemble_mse
+```
+
+
+
+```{r}
+remotes::install_github("mlverse/chattr", force = TRUE)
+Sys.setenv(OPEN_AI_KEY = "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")
+#chattr_app()
+#chattr_use("gpt35")
+```
+
+```{r}
+library(chattr)
+
+```
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+First this is importing the data and sorting it out:
+```{r}
+df <- readxl::read_xlsx("data/final.xlsx")
+dim(df)
+
+df1 <- read_csv('data/data1.csv')
+
+
+df <- df %>%
+        clean_names()
+
+
+df <- df %>%
+        rename(
+           country=country_name
+           )
+
+df$year <- as.numeric(df$year)
+
+data <- left_join(df, df1, by = c("year" = "year" , "country" = "country")) 
+
+```
+
+Then we standardize the data and remove an unnecessary column:
+```{r}
+newdata <- data
+for (col in colnames(data)) {
+  if (is.numeric(data[[col]])) {
+    max_val <- max(data[[col]], na.rm = TRUE)
+    newdata[[col]] <- newdata[[col]] / max_val
+  }
+}
+
+newdata <- newdata[, -which(names(newdata) == "...1")]
+```
+
+
+Extract response variable y which is tfp
+```{r}
+x <- newdata %>%
+  select(TFP)
+y <- newdata %>%
+  select(-TFP)
+```
+get validation data:
+```{r}
+set.seed(1)  # for the purpose of reproducibility
+n <- nrow(y)
+validation.index <- sample(n, 0.1*as.numeric(nrow(newdata)))
+length(validation.index)   # reserve 10000
+y_val <- y[validation.index, ] # 
+## validation input/y
+y_xval <- as.matrix(y_val[, -1])  # make sure it it is a matrix
+y_yval <- as.matrix(y_val[, 1]) # make sure it it is a matrix
+```
+And then we get training/testing data:
+```{r}
+## training input/y: need to be matrix/vector
+y_xtrain <- y[-validation.index, -1]   #dim(data3_xtrain)
+y_ytrain <- y[-validation.index, 1]   
+y_xtrain <- as.matrix(y_xtrain) # make sure it it is a matrix
+y_ytrain <- as.matrix(y_ytrain) # make sure it it is a matrix
+```
+fully connected neural network:
+```{r, warning = F, message = F}
+# set seed for keras
+set_random_seed(10)
+
+# Create a Keras Sequential model
+p <- dim(y_xtrain)[2] # number of input variables
+
+
+model <- keras_model_sequential() %>%
+layer_dense(units = 16, activation = "relu", input_shape = c(p)) %>%
+# 1 layer with 16 neurons. default activation is relu
+layer_dense(units = 8, activation = "relu") %>%
+# layer 2 with 8 neurons
+layer_dense(units = 2, activation = "softmax") # output
+
+print(model)
+
+```
+```{r, warning = F, message = F}
+##Compile the Model
+
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "sparse_categorical_crossentropy",    #  will take care of integers # categorical_crossentropy
+  metrics = c("accuracy")
+)
+```
+```{r, echo = F}
+#fix the error i get when running this block of code
+#fit the model correctly with y_xtrain and y_ytrain
+
+
+fit1 <- model %>% fit(
+  y_xtrain,
+  y_ytrain,
+  epochs = 20, #20 in the lecture. I tried larger epochs
+  batch_size = 512,
+  validation_split = .15 # set 15% of the data3_xtain, data3_ytrain as the validation data
+)
+
+```
