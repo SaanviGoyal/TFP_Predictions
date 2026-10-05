@@ -1,10 +1,10 @@
-# TFP_Predictions
+# TFP Prediction
 
 An R project that uses country-level macroeconomic and demographic data to model and predict total factor productivity (TFP).
 
 ## Overview
 
-This repository contains an R Markdown workflow for studying how TFP changes across countries and years.[1] The analysis imports data from `final.xlsx` and `data1.csv`, merges them into a panel dataset, cleans missing values, and trains several predictive models in R.
+This repository contains an R Markdown workflow for studying how TFP changes across countries and years. The analysis imports data from `final.xlsx` and `data1.csv`, merges them into a panel dataset, cleans missing values, and trains several predictive models in R.
 
 ## Models used
 
@@ -15,7 +15,7 @@ The project compares multiple statistical and machine learning approaches implem
 - Reduced linear model
 - Decision tree with `tree`
 - Random forest with `randomForest`
-- Ensemble model averaging predictions across models[1]
+- Ensemble model averaging predictions across models
 
 The notebook also includes an experimental neural network section written through the R `keras` and `tensorflow` packages.
 
@@ -41,7 +41,7 @@ TFP_Predictions/
 
 ## Requirements
 
-This project is written in **R**, not Python.[1] To run it, use RStudio or another R environment with the following packages installed:
+This project is written in **R**. To run it, use RStudio or another R environment with the following packages installed:
 
 ```r
 install.packages(c("pacman", "janitor", "caret", "readxl", "tidyverse"))
